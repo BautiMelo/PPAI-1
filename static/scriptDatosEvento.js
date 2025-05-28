@@ -3,29 +3,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Obtener datos del evento
     fetch('/obtener_datos_evento')
-        .then(response => {
-            console.log('Respuesta recibida:', response); // Debug
-            return response.json();
-        })
+        .then(response => response.json())
         .then(data => {
-            console.log('Datos recibidos:', data); // Debug
             if (data.success) {
-                mostrarDatosEvento(data.evento);
+                mostrarDatosEvento(data.evento, data.series_temporales);
             } else {
-                throw new Error(data.error || 'Error desconocido');
+                mostrarError(data.error || 'Error desconocido');
             }
         })
         .catch(error => {
-            console.error('Error:', error);
             mostrarError('Error al cargar los datos del evento: ' + error.message);
         });
 
     // Botones de opciones
     document.getElementById('btnMapa').addEventListener('click', function() {
-        if (!confirm('¿Desea ver el mapa del evento?')) {
-            return;
-        }
-        fetch('/mostrar_mapa');
+        alert('Funcionalidad de mapa: aquí se mostraría el evento y las estaciones en un mapa.');
     });
 
     document.getElementById('btnModificar').addEventListener('click', function() {
@@ -40,35 +32,30 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Por favor seleccione una acción');
             return;
         }
-
         fetch('/ejecutar_accion', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ accion: accion })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accion })
         })
-        .then(response => response.json())
+        .then(r => r.json())
         .then(data => {
             if (data.success) {
                 alert('Acción ejecutada con éxito');
                 window.location.href = '/opciones';
+            } else {
+                alert(data.error || 'Error al ejecutar la acción');
             }
         });
     });
 });
 
-function mostrarDatosEvento(evento) {
-    console.log('Mostrando datos:', evento); // Debug
-    
+function mostrarDatosEvento(evento, seriesTemporales) {
     const datosPrincipales = document.getElementById('datosPrincipales');
     if (!evento) {
         mostrarError('No se pudieron cargar los datos del evento');
         return;
     }
-
-    // Duplicado de la información del evento
-    datosPrincipales.innerHTML += `
+    datosPrincipales.innerHTML = `
         <div class="card mb-3">
             <div class="card-header bg-info text-white">
                 <h5 class="mb-0">Información del Evento</h5>
@@ -93,6 +80,85 @@ function mostrarDatosEvento(evento) {
             </div>
         </div>
     `;
+    // Llenar los inputs del formulario de modificación
+    document.getElementById('inputMagnitud').value = evento.valorMagnitud || '';
+    document.getElementById('inputAlcance').value = evento.alcanceSismo || '';
+    document.getElementById('inputOrigen').value = evento.origenGeneracion || '';
+
+    // Mostrar series temporales y muestras
+    mostrarSeriesTemporales(seriesTemporales);
+}
+
+function mostrarSeriesTemporales(series) {
+    const contenedor = document.getElementById('seriesTemporales');
+    if (!series || series.length === 0) {
+        contenedor.innerHTML = '<div class="alert alert-info">No hay series temporales registradas.</div>';
+        return;
+    }
+    let html = '';
+    series.forEach((serie, idx) => {
+        html += `<div class="card mb-2">
+            <div class="card-header bg-light">
+                <strong>Serie temporal #${idx + 1}</strong><br>
+                <span><b>Fecha/Hora inicio:</b> ${serie.fechaHoraInicioRegistroMuestras}</span><br>
+                <span><b>Frecuencia de muestreo:</b> ${serie.frecuenciaMuestreo} Hz</span><br>
+                <span><b>Alerta de alarma:</b> ${serie.condicionAlarma}</span>
+            </div>
+            <div class="card-body">
+                <h6 class="mb-2">Muestras sísmicas:</h6>
+                <ul class="list-group">`;
+        serie.muestras.forEach((muestra, j) => {
+            html += `<li class="list-group-item">
+                <b>Fecha/Hora muestra ${j + 1}:</b> ${muestra.fechaHoraMuestra}<br>
+                <ul style="margin-left: 1em;">`;
+            muestra.detalle.forEach(det => {
+                html += `
+                    <li style="font-style:italic;">
+                        ${det.tipoDeDato === 'Velocidad de onda' ? '<b>Velocidad de onda:</b>' : ''}
+                        ${det.tipoDeDato === 'Frecuencia de onda' ? '<b>Frecuencia de onda:</b>' : ''}
+                        ${det.tipoDeDato === 'Longitud' ? '<b>Longitud:</b>' : ''}
+                        ${det.valor}
+                    </li>
+                `;
+            });
+            html += `
+                </ul>
+            </li>`;
+        });
+        html += `</ul></div></div>`;
+    });
+    contenedor.innerHTML = html;
+}
+
+// Modificar datos del evento
+const formModificar = document.getElementById('formModificarDatos');
+if (formModificar) {
+    formModificar.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const valorMagnitud = document.getElementById('inputMagnitud').value;
+        const alcanceSismo = document.getElementById('inputAlcance').value;
+        const origenGeneracion = document.getElementById('inputOrigen').value;
+        fetch('/modificar_datos_evento', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ valorMagnitud, alcanceSismo, origenGeneracion })
+        })
+        .then(r => r.json())
+        .then(data => {
+            const msg = document.getElementById('mensajeModificacion');
+            if (data.success) {
+                msg.textContent = 'Datos modificados correctamente';
+                msg.classList.remove('d-none');
+                msg.classList.remove('alert-danger');
+                msg.classList.add('alert-success');
+            } else {
+                msg.textContent = data.error || 'Error al modificar';
+                msg.classList.remove('d-none');
+                msg.classList.remove('alert-success');
+                msg.classList.add('alert-danger');
+            }
+        });
+    });
 }
 
 function mostrarError(mensaje) {
