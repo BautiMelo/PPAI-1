@@ -27,14 +27,18 @@ def crear_eventos_sismicos():
     clasificacion_intermedio = ClasificacionSismo("Intermedio", 71, 300)
     clasificacion_profundo = ClasificacionSismo("Profundo", 301, 700)
 
-    # Crear orígenes posibles del sismo
-    origen_natural = OrigenDeGeneracion("Natural", "Sismo de origen tectónico natural")
-    origen_artificial = OrigenDeGeneracion("Artificial", "Sismo provocado por actividad humana")
-
     # Crear alcances posibles del sismo
     alcance_local = AlcanceSismo("Afecta área local", "Local")
     alcance_regional = AlcanceSismo("Afecta área regional", "Regional")
     alcance_nacional = AlcanceSismo("Afecta área nacional", "Nacional")
+    # Lista de nombres de alcances para el frontend
+    ALCANCES_SISMO = [alcance_local.getNombre(), alcance_regional.getNombre(), alcance_nacional.getNombre()]
+
+    # Crear orígenes posibles del sismo
+    origen_natural = OrigenDeGeneracion("Natural", "Sismo de origen tectónico natural")
+    origen_artificial = OrigenDeGeneracion("Artificial", "Sismo provocado por actividad humana")
+    # Lista de nombres de orígenes para el frontend
+    ORIGENES_GENERACION = [origen_natural.getNombre(), origen_artificial.getNombre()]
 
     # Crear tipos de datos para los detalles de las muestras
     tipo_aceleracion = TipoDeDato("Aceleración", "m/s²", 9.8)
@@ -51,8 +55,13 @@ def crear_eventos_sismicos():
 
     # Crear 15 eventos sísmicos con datos variados y realistas
     for i in range(15):
-        # Fecha base para el evento y sus muestras
-        base_fecha = datetime(2025, 2, 21, 19, 5, 41)
+        # Variar la fecha y la ubicación para que cada evento sea único
+        base_fecha = datetime(2025, 2, 21, 19, 5, 41) + timedelta(hours=i)  # Cada evento una hora después
+        lat_epicentro = -31.5 + (i * 0.1)  # Variar latitud
+        long_epicentro = -64.0 + (i * 0.1)  # Variar longitud
+        lat_hipocentro = -31.4 + (i * 0.1)
+        long_hipocentro = -63.9 + (i * 0.1)
+        magnitud = round(5.0 + (i % 5) * 0.3, 2)  # Magnitud variable entre 5.0 y 6.2
         # Cantidad aleatoria de series temporales por evento (1 a 3)
         num_series = randint(1, 3)
         series_temporales = []
@@ -107,11 +116,11 @@ def crear_eventos_sismicos():
         # Crear el evento sísmico con todos sus datos y series
         evento = EventoSismico(
             fechaHoraOcurrencia=base_fecha,
-            latitudEpicentro=-31.5,
-            longitudEpicentro=-64.0,
-            latitudHipocentro=-31.4,
-            longitudHipocentro=-63.9,
-            valorMagnitud=5.2,
+            latitudEpicentro=lat_epicentro,
+            longitudEpicentro=long_epicentro,
+            latitudHipocentro=lat_hipocentro,
+            longitudHipocentro=long_hipocentro,
+            valorMagnitud=magnitud,
             origenGeneracion=origen_natural if i % 2 == 0 else origen_artificial,
             estadoActual=estado_auto_detectado if i % 2 == 0 else estado_normal,
             cambiosEstado=cambios_estado,
@@ -119,6 +128,8 @@ def crear_eventos_sismicos():
             alcanceSismo=alcance_local,
             serieTemporal=series_temporales
         )
+        # Asignar un id_evento basado en la instancia en memoria
+        evento.id_evento = id(evento)
         eventos.append(evento)
 
-    return eventos
+    return eventos, ALCANCES_SISMO, ORIGENES_GENERACION

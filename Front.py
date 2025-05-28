@@ -38,14 +38,17 @@ def mostrar_eventos():
         global eventos_cache
         # Si la caché está vacía, crear los eventos sísmicos de ejemplo
         if eventos_cache is None:
-            eventos_cache = crear_eventos_sismicos()
+            eventos_cache, alcances_sismo, origenes_generacion = crear_eventos_sismicos()
+        else:
+            # Si ya existe la caché, obtener los valores de los desplegables de la función
+            _, alcances_sismo, origenes_generacion = crear_eventos_sismicos()
 
         eventos_para_mostrar = []
         # Filtrar solo los eventos auto-detectados y armar la estructura para la vista
         for evento in eventos_cache:
             if evento.estaAutoDetectado():
                 eventos_para_mostrar.append({
-                    'id': id(evento),
+                    'id': evento.id_evento,  # Usar el identificador único persistente
                     'fechaHoraOcurrencia': evento.getFechaHoraOcurrencia().strftime('%Y-%m-%d %H:%M:%S'),
                     'latitudEpicentro': evento.getLatitudEpicentro(),
                     'longitudEpicentro': evento.getLongitudEpicentro(),
@@ -55,8 +58,8 @@ def mostrar_eventos():
                     'estado': evento.getEstadoActual().getNombreEstado()
                 })
 
-        # Renderizar la plantilla con la lista de eventos
-        return render_template('registrar.html', eventos=eventos_para_mostrar)
+        # Renderizar la plantilla con la lista de eventos y los valores de los desplegables
+        return render_template('registrar.html', eventos=eventos_para_mostrar, alcances_sismo=alcances_sismo, origenes_generacion=origenes_generacion)
     except Exception as e:
         print(f"Error: {str(e)}")
         return render_template('registrar.html', error=str(e))
@@ -84,9 +87,9 @@ def seleccionar_evento():
                 'error': 'No hay eventos disponibles'
             }), 500
 
-        # Buscar el evento en la caché por su id (usando id() de Python)
+        # Buscar el evento en la caché por su id persistente
         evento_seleccionado = next(
-            (evento for evento in eventos_cache if id(evento) == evento_id),
+            (evento for evento in eventos_cache if evento.id_evento == evento_id),
             None
         )
 
@@ -141,6 +144,9 @@ def obtener_datos_evento():
         if not evento:
             return jsonify({'success': False, 'error': 'No hay evento seleccionado'}), 404
 
+        # Obtener valores de los desplegables
+        _, alcances_sismo, origenes_generacion = crear_eventos_sismicos()
+
         # Datos principales del evento (sin series)
         alcance = evento.getAlcanceSismo()
         clasificacion = evento.getClasificacion()
@@ -159,14 +165,15 @@ def obtener_datos_evento():
         }
 
         # Usar el método del gestor para obtener las series temporales y que este inicie el recorrido de getDatos
-        # Esto devuelve una lista de series, cada una con sus muestras y detalles
         series_temporales = gestor.obtenerSeriesTemporales(evento)
-        gestor.llamarCUGenerarSismograma(evento)  # (Simulación de generación de sismograma)
+        gestor.llamarCUGenerarSismograma(evento)
 
         return jsonify({
             'success': True,
             'evento': datos_evento,
-            'series_temporales': series_temporales
+            'series_temporales': series_temporales,
+            'alcances_sismo': alcances_sismo,
+            'origenes_generacion': origenes_generacion
         })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

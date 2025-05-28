@@ -6,6 +6,9 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
+                // Llenar selects de alcance y origen
+                llenarSelect('inputAlcance', data.alcances_sismo, data.evento.alcanceSismo);
+                llenarSelect('inputOrigen', data.origenes_generacion, data.evento.origenGeneracion);
                 mostrarDatosEvento(data.evento, data.series_temporales);
             } else {
                 mostrarError(data.error || 'Error desconocido');
@@ -49,7 +52,26 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+function llenarSelect(id, opciones, valorActual) {
+    const select = document.getElementById(id);
+    if (!select) return;
+    select.innerHTML = '';
+    opciones.forEach(op => {
+        const opt = document.createElement('option');
+        opt.value = op;
+        opt.textContent = op;
+        if (op === valorActual) opt.selected = true;
+        select.appendChild(opt);
+    });
+}
+
+// Guardar el evento y series actuales en variables globales para actualización local
+window.eventoActual = null;
+window.seriesTemporalesActuales = null;
+
 function mostrarDatosEvento(evento, seriesTemporales) {
+    window.eventoActual = evento;
+    window.seriesTemporalesActuales = seriesTemporales;
     const datosPrincipales = document.getElementById('datosPrincipales');
     if (!evento) {
         mostrarError('No se pudieron cargar los datos del evento');
@@ -82,8 +104,11 @@ function mostrarDatosEvento(evento, seriesTemporales) {
     `;
     // Llenar los inputs del formulario de modificación
     document.getElementById('inputMagnitud').value = evento.valorMagnitud || '';
-    document.getElementById('inputAlcance').value = evento.alcanceSismo || '';
-    document.getElementById('inputOrigen').value = evento.origenGeneracion || '';
+    // Llenar selects de alcance y origen con el valor actual
+    if (window.ultimosAlcances && window.ultimosOrigenes) {
+        llenarSelect('inputAlcance', window.ultimosAlcances, evento.alcanceSismo);
+        llenarSelect('inputOrigen', window.ultimosOrigenes, evento.origenGeneracion);
+    }
 
     // Mostrar series temporales y muestras
     mostrarSeriesTemporales(seriesTemporales);
@@ -131,35 +156,44 @@ function mostrarSeriesTemporales(series) {
 }
 
 // Modificar datos del evento
-const formModificar = document.getElementById('formModificarDatos');
-if (formModificar) {
-    formModificar.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const valorMagnitud = document.getElementById('inputMagnitud').value;
-        const alcanceSismo = document.getElementById('inputAlcance').value;
-        const origenGeneracion = document.getElementById('inputOrigen').value;
-        fetch('/modificar_datos_evento', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ valorMagnitud, alcanceSismo, origenGeneracion })
-        })
-        .then(r => r.json())
-        .then(data => {
-            const msg = document.getElementById('mensajeModificacion');
-            if (data.success) {
-                msg.textContent = 'Datos modificados correctamente';
-                msg.classList.remove('d-none');
-                msg.classList.remove('alert-danger');
-                msg.classList.add('alert-success');
-            } else {
-                msg.textContent = data.error || 'Error al modificar';
-                msg.classList.remove('d-none');
-                msg.classList.remove('alert-success');
-                msg.classList.add('alert-danger');
-            }
+(function() {
+    const formModificar = document.getElementById('formModificarDatos');
+    if (formModificar) {
+        formModificar.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const valorMagnitud = document.getElementById('inputMagnitud').value;
+            const alcanceSismo = document.getElementById('inputAlcance').value;
+            const origenGeneracion = document.getElementById('inputOrigen').value;
+            fetch('/modificar_datos_evento', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ valorMagnitud, alcanceSismo, origenGeneracion })
+            })
+            .then(r => r.json())
+            .then(data => {
+                const msg = document.getElementById('mensajeModificacion');
+                if (data.success) {
+                    msg.textContent = 'Datos modificados correctamente';
+                    msg.classList.remove('d-none');
+                    msg.classList.remove('alert-danger');
+                    msg.classList.add('alert-success');
+                    // Actualizar los datos mostrados en pantalla sin recargar
+                    if (window.eventoActual) {
+                        window.eventoActual.valorMagnitud = valorMagnitud;
+                        window.eventoActual.alcanceSismo = alcanceSismo;
+                        window.eventoActual.origenGeneracion = origenGeneracion;
+                        mostrarDatosEvento(window.eventoActual, window.seriesTemporalesActuales || []);
+                    }
+                } else {
+                    msg.textContent = data.error || 'Error al modificar';
+                    msg.classList.remove('d-none');
+                    msg.classList.remove('alert-success');
+                    msg.classList.add('alert-danger');
+                }
+            });
         });
-    });
-}
+    }
+})();
 
 function mostrarError(mensaje) {
     const datosPrincipales = document.getElementById('datosPrincipales');
@@ -169,3 +203,13 @@ function mostrarError(mensaje) {
         </div>
     `;
 }
+
+// Al recibir los datos del backend, guardar los valores de los selects para reutilizarlos
+fetch('/obtener_datos_evento')
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.ultimosAlcances = data.alcances_sismo;
+            window.ultimosOrigenes = data.origenes_generacion;
+        }
+    });
